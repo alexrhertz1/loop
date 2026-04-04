@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Loop">
+<meta name="theme-color" content="#0C0C0E">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<title>Loop</title>
+</head>
+<body style="margin:0;padding:0;background:#0C0C0E;font-family:-apple-system,BlinkMacSystemFont,sans-serif;position:fixed;top:0;left:0;right:0;bottom:0;overflow:hidden;-webkit-user-select:none">
+
+<div id="app" style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;overflow:hidden;color:#F5F5F7"></div>
+
+<script>
+try {
+
+var C = {
+  bg:"#0C0C0E", surface:"#151517", surfaceRaised:"#1C1C1F",
+  accent:"#44FF44", accentEnd:"#88FF88",
+  accentSoft:"rgba(68,255,68,0.10)",
+  approve:"#44FF44", approveBg:"rgba(68,255,68,0.85)",
+  snooze:"#FDCB6E", snoozeBg:"rgba(253,203,110,0.9)",
+  dismiss:"#E17055", dismissBg:"rgba(225,112,85,0.9)",
+  automate:"#5BC0EB", automateBg:"rgba(91,192,235,0.9)",
+  chevronSemi:"#44FF44", chevronAuto:"#5BC0EB",
+  text1:"#F5F5F7", text2:"#8E8E93", text3:"#48484A",
+  border:"rgba(255,255,255,0.06)"
+};
+
+// Swipe thresholds
+// Normal/fast swipe = short action (default)
+// Only VERY slow deliberate drags trigger long swipe
+var LONG_SWIPE = 200;
+var SHORT_SWIPE = 70;
+var LONG_SWIPE_MIN_TIME = 2000; // ms — gesture must take 2+ seconds for long swipe
+
+var INITIAL = [
+  {id:1,auto:"manual",title:"Get groceries",sub:"Weekly restock",cTitle:"Got groceries",cSub:"Closed just now",src:"Manual",ctx:"You added this last Sunday. Typical weekly cadence.",ai:"I can help build a list from your past orders if you connect Instacart."},
+  {id:2,auto:"semi",title:"Review user flow",sub:"Draft ready",cTitle:"User flow reviewed",cSub:"Closed 2h ago",src:"App project",ctx:"You started the user flow redesign last week. I\u2019ve put together a walkthrough of the updated screens with annotations.",ai:"The draft covers 4 screens: onboarding, home, detail view, and settings. Ready for your feedback."},
+  {id:3,auto:"semi",title:"Review Corey follow-up email",sub:"Draft ready \u00B7 Waiting 3 hours",cTitle:"Corey email sent",cSub:"Closed 30m ago",src:"Work \u2014 Gmail",ctx:"Corey emailed this morning about the reverse trial timeline. You opened it but didn\u2019t reply. He\u2019s been waiting 3 hours.",ai:"Hey Corey \u2014 good call on the timeline concern. I\u2019ve moved the launch to the 15th to give us a buffer. Updated project plan attached."},
+  {id:4,auto:"semi",title:"Review open design roles",sub:"List ready \u00B7 30 roles found",cTitle:"Design roles reviewed",cSub:"Closed 1d ago",src:"Career",ctx:"Based on your target companies and level, I found 30 open senior/staff product design roles. Filtered for growth or platform teams.",ai:"Top matches: Spotify (Growth Design Lead), Airbnb (Senior Product Designer, Activation), Stripe (Staff Designer, Dashboard). Want me to shortlist the top 10?"},
+  {id:5,auto:"manual",title:"Finish milestone 2 design",sub:"Reverse trial project",cTitle:"Milestone 2 design finished",cSub:"Closed 5m ago",src:"Work",ctx:"Milestone 2 is due Friday. You\u2019ve completed 3 of 5 screens. The settings and confirmation screens are still open.",ai:"I can\u2019t design these for you, but I\u2019ve blocked 2 hours tomorrow afternoon for focused design time."},
+  {id:6,auto:"auto",title:"Correspond with Corey",sub:"Monitoring \u00B7 2 emails today",cTitle:"Coordinated reverse trial emails",cSub:"3 emails exchanged \u00B7 Waiting for reply",src:"Work \u2014 Gmail",ctx:"This thread is on autopilot. I\u2019ve been handling routine updates about the reverse trial project with Corey. 3 emails exchanged today, all within your usual tone and scope.",ai:"Last sent: \u201CHey Corey, confirmed the asset handoff for Friday. I\u2019ll send the final files Thursday EOD.\u201D\n\nI\u2019ll flag anything that goes outside routine coordination."},
+  {id:7,auto:"semi",title:"Review dentist booking",sub:"3 slots found \u00B7 Next Tue & Thu",cTitle:"Dentist booked",cSub:"Tue 9am \u00B7 Dr. Park",src:"Health",ctx:"It\u2019s been 9 months since your last visit. Dr. Park has 3 openings next week: Tue 9am, Tue 11am, Thu 10am.",ai:"Want me to book Tuesday 9am? I\u2019ll add it to your calendar and set a reminder the night before."}
+];
+
+var active = JSON.parse(JSON.stringify(INITIAL));
+var snoozed = [];
+var closed = [];
+var tab = "active";
+var sheetLoop = null;
+var toastTimer = null;
+
+// Drag reorder state
+var dragItem = null;
+var dragEl = null;
+var dragClone = null;
+var dragStartY = 0;
+var dragOffsetY = 0;
+var dragIndex = -1;
+
+function getList() { return tab === "active" ? active : tab === "snoozed" ? snoozed : closed; }
+
+function chevronHTML(a) {
+  if (a === "manual") return "";
+  if (a === "semi") return '<svg width="10" height="12" viewBox="0 0 10 12" fill="none" style="vertical-align:middle"><path d="M2 1L8 6L2 11" stroke="#44FF44" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  return '<svg width="16" height="12" viewBox="0 0 16 12" fill="none" style="vertical-align:middle"><path d="M1 1L6 6L1 11" stroke="#5BC0EB" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 1L14 6L9 11" stroke="#5BC0EB" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+
+function showToast(msg, color) {
+  var el = document.getElementById("toast");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.borderColor = color;
+  el.style.color = color;
+  el.style.opacity = "1";
+  el.style.transform = "translateX(-50%) translateY(0)";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() {
+    el.style.opacity = "0";
+    el.style.transform = "translateX(-50%) translateY(20px)";
+  }, 2000);
+}
+
+function doAction(id, action) {
+  var item, i;
+  if (action === "complete") {
+    for (i = 0; i < active.length; i++) { if (active[i].id === id) { item = active.splice(i, 1)[0]; break; } }
+    if (!item) for (i = 0; i < snoozed.length; i++) { if (snoozed[i].id === id) { item = snoozed.splice(i, 1)[0]; break; } }
+    if (item) { closed.unshift(JSON.parse(JSON.stringify(item))); showToast("Done \u2014 loop closed", C.approve); }
+  } else if (action === "snooze") {
+    for (i = 0; i < active.length; i++) { if (active[i].id === id) { item = active.splice(i, 1)[0]; break; } }
+    if (item) { snoozed.unshift(JSON.parse(JSON.stringify(item))); showToast("Snoozed \u2014 I\u2019ll bring it back", C.snooze); }
+  } else if (action === "remove") {
+    active = active.filter(function(l){return l.id!==id});
+    snoozed = snoozed.filter(function(l){return l.id!==id});
+    closed = closed.filter(function(l){return l.id!==id});
+    showToast("Loop removed", C.dismiss);
+  } else if (action === "automate") {
+    for (i = 0; i < active.length; i++) { if (active[i].id === id) { item = active.splice(i, 1)[0]; break; } }
+    if (!item) for (i = 0; i < snoozed.length; i++) { if (snoozed[i].id === id) { item = snoozed.splice(i, 1)[0]; break; } }
+    if (item) { item.auto = "auto"; item.sub = "AI takeover \u2022 Monitoring"; closed.unshift(JSON.parse(JSON.stringify(item))); }
+    showToast("\u00BB AI is now handling this loop", C.automate);
+  } else if (action === "reactivate") {
+    for (i = 0; i < snoozed.length; i++) { if (snoozed[i].id === id) { item = snoozed.splice(i, 1)[0]; break; } }
+    if (!item) for (i = 0; i < closed.length; i++) { if (closed[i].id === id) { item = closed.splice(i, 1)[0]; break; } }
+    if (item) { active.unshift(JSON.parse(JSON.stringify(item))); showToast("Reopened", C.accent); }
+  }
+  render();
+}
+
+function openSheet(loop) {
+  sheetLoop = loop;
+  var overlay = document.getElementById("sheetOverlay");
+  var sheet = document.getElementById("sheet");
+  var isClosed = tab === "closed";
+  var isSnoozed = tab === "snoozed";
+  var autoLabel = loop.auto === "auto" ? "Fully automatic" : loop.auto === "semi" ? "Needs your approval" : "Manual task";
+  var aiLabel = loop.auto === "auto" ? "What I\u2019ve been doing" : loop.auto === "semi" ? "What I\u2019ll do" : "How I can help";
+  var title = isClosed ? loop.cTitle : loop.title;
+  var sub = isClosed ? loop.cSub : loop.sub;
+
+  var btns = "";
+  if (isClosed) {
+    btns = '<button onclick="doAction('+loop.id+',\'reactivate\');closeSheet()" style="flex:1;padding:13px 0;border-radius:10px;border:1px solid '+C.border+';background:'+C.surfaceRaised+';color:'+C.text1+';font-size:14px;font-weight:600;font-family:inherit">Reopen</button>';
+  } else if (isSnoozed) {
+    btns = '<button onclick="doAction('+loop.id+',\'remove\');closeSheet()" style="flex:1;padding:13px 0;border-radius:10px;border:1px solid '+C.border+';background:transparent;color:'+C.text2+';font-size:14px;font-weight:600;font-family:inherit">Remove</button>'
+      + '<button onclick="doAction('+loop.id+',\'reactivate\');closeSheet()" style="flex:2;padding:13px 0;border-radius:10px;border:none;background:linear-gradient(135deg,'+C.accent+','+C.accentEnd+');color:#0A0A0A;font-size:14px;font-weight:600;font-family:inherit">Reactivate</button>';
+  } else {
+    btns = '<button onclick="doAction('+loop.id+',\'remove\');closeSheet()" style="flex:1;padding:13px 0;border-radius:10px;border:1px solid '+C.border+';background:transparent;color:'+C.text2+';font-size:14px;font-weight:600;font-family:inherit">Remove</button>'
+      + '<button onclick="doAction('+loop.id+',\'snooze\');closeSheet()" style="flex:1;padding:13px 0;border-radius:10px;border:1px solid '+C.border+';background:transparent;color:'+C.snooze+';font-size:14px;font-weight:600;font-family:inherit">Snooze</button>'
+      + '<button onclick="doAction('+loop.id+',\'complete\');closeSheet()" style="flex:2;padding:13px 0;border-radius:10px;border:none;background:linear-gradient(135deg,'+C.accent+','+C.accentEnd+');color:#0A0A0A;font-size:14px;font-weight:600;font-family:inherit">Approve</button>';
+  }
+
+  sheet.innerHTML = '<div style="width:32px;height:3px;background:#48484A;border-radius:2px;margin:0 auto 20px;opacity:0.4"></div>'
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span style="font-size:12px;color:#8E8E93;font-weight:500">'+autoLabel+'</span><span style="font-size:12px;color:#48484A">\u00B7</span><span style="font-size:12px;color:#48484A">'+loop.src+'</span><span style="margin-left:auto">'+chevronHTML(loop.auto)+'</span></div>'
+    + '<h2 style="font-size:18px;font-weight:700;margin:0 0 4px;line-height:1.3">'+title+'</h2>'
+    + '<p style="font-size:13px;color:#8E8E93;margin:0 0 20px">'+sub+'</p>'
+    + '<div style="margin-bottom:16px"><div style="font-size:10px;font-weight:700;color:#48484A;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 6px">Context</div><p style="font-size:13px;color:#8E8E93;line-height:1.55;margin:0">'+loop.ctx+'</p></div>'
+    + '<div style="background:'+C.accentSoft+';border-radius:10px;padding:12px 14px;margin-bottom:24px;border:1px solid rgba(68,255,68,0.08)"><div style="font-size:10px;font-weight:700;color:'+C.accent+';letter-spacing:0.08em;text-transform:uppercase;margin:0 0 6px">'+aiLabel+'</div><p style="font-size:13px;color:#F5F5F7;line-height:1.55;margin:0;white-space:pre-line">'+loop.ai+'</p></div>'
+    + '<div style="display:flex;gap:8px">'+btns+'</div>';
+
+  overlay.style.display = "block";
+  sheet.style.transform = "translateY(0)";
+}
+
+function closeSheet() {
+  document.getElementById("sheetOverlay").style.display = "none";
+  document.getElementById("sheet").style.transform = "translateY(100%)";
+  sheetLoop = null;
+}
+
+// ── AI subtitle generator ──
+var aiResponses = [
+  {kw:["grocer","food","meal","cook","recipe","eat","lunch","dinner","breakfast","instacart"],src:"Errands",ctx:"You just added this.",ai:"I can draft a shopping list from your recent orders if you connect a grocery app."},
+  {kw:["email","reply","respond","send","write to","follow up","message","slack","dm"],src:"Communication",ctx:"You want to handle a message.",ai:"I can draft a reply for your review, or monitor the thread and flag if it needs attention."},
+  {kw:["book","reserv","appoint","schedule","doctor","dentist","haircut","salon","vet"],src:"Scheduling",ctx:"You want to book something.",ai:"I\u2019ll search for available slots and present the top options for you to pick."},
+  {kw:["design","figma","screen","wireframe","mockup","prototype","ui","ux","layout"],src:"Design",ctx:"Design work on your plate.",ai:"I can\u2019t push pixels for you, but I\u2019ll block focus time and pull relevant references."},
+  {kw:["meet","call","sync","standup","1:1","zoom","agenda"],src:"Meetings",ctx:"You have a meeting-related task.",ai:"I\u2019ll prepare an agenda and pull in any relevant docs or action items from last time."},
+  {kw:["pay","bill","invoice","rent","transfer","venmo","payment"],src:"Finance",ctx:"A payment-related task.",ai:"I\u2019ll set a reminder and surface the details when it\u2019s time. I won\u2019t make payments without your approval."},
+  {kw:["workout","gym","run","exercise","health","walk","yoga","stretch"],src:"Health",ctx:"Staying on top of fitness.",ai:"I\u2019ll add this to your routine and send a nudge at your preferred time."},
+  {kw:["job","role","apply","resume","interview","career","linkedin","portfolio"],src:"Career",ctx:"Career-related action.",ai:"I can research open roles, tailor your resume, or help you prep \u2014 just say the word."},
+  {kw:["read","article","book","watch","listen","podcast","video","learn"],src:"Learning",ctx:"Something to consume or learn.",ai:"I\u2019ll save this and surface it during your next downtime window."},
+  {kw:["clean","organize","tidy","laundry","dishes","vacuum","declutter"],src:"Home",ctx:"Household task.",ai:"I\u2019ll add it to your recurring chores. Want me to schedule a regular cadence?"},
+  {kw:["buy","order","shop","purchase","amazon","return","ship"],src:"Shopping",ctx:"Something to buy or return.",ai:"I can track prices, find deals, or remind you before a return window closes."},
+  {kw:["travel","flight","hotel","trip","pack","passport","airbnb"],src:"Travel",ctx:"Travel planning.",ai:"I\u2019ll research options and put together an itinerary draft for your review."}
+];
+
+function generateAI(desc) {
+  var lower = desc.toLowerCase();
+  for (var i = 0; i < aiResponses.length; i++) {
+    var r = aiResponses[i];
+    for (var j = 0; j < r.kw.length; j++) {
+      if (lower.indexOf(r.kw[j]) !== -1) return r;
+    }
+  }
+  return {src:"Manual",ctx:"You just added this.",ai:"I\u2019ll keep this on your radar. Tell me more and I can figure out how to help."};
+}
+
+var nextId = 100;
+
+function openAddSheet() {
+  var overlay = document.getElementById("sheetOverlay");
+  var sheet = document.getElementById("sheet");
+
+  sheet.innerHTML = '<div style="width:32px;height:3px;background:#48484A;border-radius:2px;margin:0 auto 20px;opacity:0.4"></div>'
+    + '<h2 style="font-size:18px;font-weight:700;margin:0 0 16px;color:#F5F5F7">New loop</h2>'
+    + '<textarea id="addLoopInput" placeholder="What do you need to get done?" rows="3" style="width:100%;box-sizing:border-box;background:'+C.surface+';border:1px solid '+C.border+';border-radius:10px;padding:14px;font-size:15px;font-family:inherit;color:#F5F5F7;resize:none;outline:none;-webkit-appearance:none"></textarea>'
+    + '<p style="font-size:12px;color:#48484A;margin:8px 0 20px">Describe it in a sentence or two \u2014 I\u2019ll figure out how to help.</p>'
+    + '<button id="addLoopBtn" onclick="submitNewLoop()" style="width:100%;padding:14px 0;border-radius:10px;border:none;background:'+C.text3+';color:'+C.text3+';font-size:15px;font-weight:600;font-family:inherit;transition:all 0.2s ease;pointer-events:none">Add loop</button>';
+
+  overlay.style.display = "block";
+  sheet.style.transform = "translateY(0)";
+
+  // Focus the input after animation
+  setTimeout(function() {
+    var inp = document.getElementById("addLoopInput");
+    if (inp) {
+      inp.focus();
+      inp.addEventListener("input", function() {
+        var btn = document.getElementById("addLoopBtn");
+        if (inp.value.trim().length > 0) {
+          btn.style.background = "linear-gradient(135deg,"+C.accent+","+C.accentEnd+")";
+          btn.style.color = "#0A0A0A";
+          btn.style.pointerEvents = "auto";
+        } else {
+          btn.style.background = C.text3;
+          btn.style.color = C.text3;
+          btn.style.pointerEvents = "none";
+        }
+      });
+    }
+  }, 350);
+}
+
+function submitNewLoop() {
+  var inp = document.getElementById("addLoopInput");
+  if (!inp || !inp.value.trim()) return;
+  var desc = inp.value.trim();
+  var match = generateAI(desc);
+  var id = nextId++;
+  var newLoop = {
+    id: id,
+    auto: "semi",
+    title: desc,
+    sub: "Thinking\u2026",
+    cTitle: desc,
+    cSub: "Closed just now",
+    src: match.src,
+    ctx: match.ctx,
+    ai: match.ai
+  };
+
+  active.unshift(newLoop);
+  tab = "active";
+  closeSheet();
+  render();
+
+  // Simulate AI "thinking" then reveal the generated subtitle
+  setTimeout(function() {
+    for (var i = 0; i < active.length; i++) {
+      if (active[i].id === id) {
+        active[i].sub = "AI ready \u00B7 " + match.src;
+        break;
+      }
+    }
+    renderList();
+    showToast("Loop added \u2014 I\u2019m on it", C.accent);
+  }, 800);
+}
+
+// ── Build a swipeable row ──
+function makeRow(loop, idx, isClosed) {
+  var wrap = document.createElement("div");
+  wrap.setAttribute("data-loop-id", loop.id);
+  wrap.style.cssText = "position:relative;overflow:hidden;opacity:0";
+  setTimeout(function(){ wrap.style.transition="opacity 0.3s ease"; wrap.style.opacity="1"; }, idx * 40);
+
+  var rbg = document.createElement("div");
+  rbg.style.cssText = "position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;padding-left:24px;opacity:0;transition:background 0.15s ease";
+  rbg.innerHTML = '<span style="color:#fff;font-size:14px;font-weight:600"></span>';
+  wrap.appendChild(rbg);
+
+  var lbg = document.createElement("div");
+  lbg.style.cssText = "position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:flex-end;padding-right:24px;opacity:0;transition:background 0.15s ease";
+  lbg.innerHTML = '<span style="font-size:14px;font-weight:600"></span>';
+  wrap.appendChild(lbg);
+
+  var title = isClosed ? loop.cTitle : loop.title;
+  var subtitle = isClosed ? loop.cSub : loop.sub;
+
+  var row = document.createElement("div");
+  row.style.cssText = "position:relative;z-index:2;background:#0C0C0E;padding:16px;display:flex;align-items:center;touch-action:pan-y";
+  row.innerHTML = '<div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:600;color:#F5F5F7;margin:0 0 3px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+title+'</div><div style="font-size:13px;color:#8E8E93;margin:0;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+subtitle+'</div></div><div style="margin-left:12px;flex-shrink:0">'+chevronHTML(loop.auto)+'</div>';
+  wrap.appendChild(row);
+
+  var dv = document.createElement("div");
+  dv.style.cssText = "height:1px;background:rgba(255,255,255,0.06);margin-left:16px";
+  wrap.appendChild(dv);
+
+  // ── Touch handling ──
+  var startX = 0, startY = 0, startTime = 0, offset = 0, isDragging = false, locked = null;
+  var lpTimer = null, isLongPressing = false;
+
+  function updateBg() {
+    var elapsed = Date.now() - startTime;
+    var isLR = offset > LONG_SWIPE && elapsed >= LONG_SWIPE_MIN_TIME;
+    var isLL = offset < -LONG_SWIPE && elapsed >= LONG_SWIPE_MIN_TIME;
+    if (offset > 20) {
+      rbg.style.opacity = isLR ? "1" : String(Math.min(offset / SHORT_SWIPE, 1));
+      rbg.style.background = isLR ? C.automateBg : C.approveBg;
+      rbg.querySelector("span").textContent = isLR ? (loop.auto==="auto" ? "\u00BB Already auto" : "\u00BB AI takeover") : (isClosed ? "\u21BA Reopen" : "\u2713 Done");
+    } else { rbg.style.opacity = "0"; }
+    if (offset < -20) {
+      lbg.style.opacity = isLL ? "1" : String(Math.min(-offset / SHORT_SWIPE, 1));
+      lbg.style.background = isLL ? C.dismissBg : C.snoozeBg;
+      lbg.querySelector("span").textContent = isLL ? "\u2715 Remove" : "\u21BB Snooze";
+      lbg.querySelector("span").style.color = isLL ? "#fff" : "#1a1a1f";
+    } else { lbg.style.opacity = "0"; }
+  }
+
+  function onTS(e) {
+    var t = e.touches[0];
+    startX = t.clientX; startY = t.clientY; startTime = Date.now();
+    isDragging = true; locked = null; isLongPressing = false;
+    row.style.transition = "none";
+
+    // Long press = start drag reorder
+    lpTimer = setTimeout(function() {
+      isLongPressing = true;
+      dragItem = loop;
+      dragEl = wrap;
+      dragIndex = getList().indexOf(loop);
+      dragStartY = t.clientY;
+      // Visual feedback
+      wrap.style.opacity = "0.6";
+      wrap.style.zIndex = "100";
+      wrap.style.transition = "none";
+      if (navigator.vibrate) navigator.vibrate(20);
+    }, 400);
+  }
+
+  function onTM(e) {
+    if (!isDragging) return;
+    var t = e.touches[0];
+    var dx = t.clientX - startX, dy = t.clientY - startY;
+
+    // If long pressing, handle drag reorder
+    if (isLongPressing) {
+      e.preventDefault();
+      var moveY = t.clientY - dragStartY;
+      wrap.style.transform = "translateY(" + moveY + "px)";
+      wrap.style.zIndex = "100";
+
+      // Find which row we're over
+      var listArea = document.getElementById("listArea");
+      var rows = listArea.querySelectorAll("[data-loop-id]");
+      var list = getList();
+      for (var ri = 0; ri < rows.length; ri++) {
+        if (rows[ri] === wrap) continue;
+        var rect = rows[ri].getBoundingClientRect();
+        if (t.clientY > rect.top && t.clientY < rect.bottom) {
+          var targetId = parseInt(rows[ri].getAttribute("data-loop-id"));
+          var fromIdx = -1, toIdx = -1;
+          for (var fi = 0; fi < list.length; fi++) {
+            if (list[fi].id === loop.id) fromIdx = fi;
+            if (list[fi].id === targetId) toIdx = fi;
+          }
+          if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
+            var moved = list.splice(fromIdx, 1)[0];
+            list.splice(toIdx, 0, moved);
+            // Re-render but keep dragging
+            var savedDragItem = dragItem;
+            renderList();
+            dragItem = savedDragItem;
+          }
+          break;
+        }
+      }
+      return;
+    }
+
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) clearTimeout(lpTimer);
+    if (!locked) {
+      if (Math.abs(dx) > 10) locked = "x";
+      else if (Math.abs(dy) > 10) locked = "y";
+      else return;
+    }
+    if (locked === "y") return;
+    e.preventDefault();
+    var f = dx;
+    if (Math.abs(dx) > LONG_SWIPE) { f = (LONG_SWIPE + (Math.abs(dx)-LONG_SWIPE)*0.3) * (dx > 0 ? 1 : -1); }
+    offset = f;
+    row.style.transform = "translateX(" + offset + "px)";
+    updateBg();
+  }
+
+  function onTE() {
+    if (!isDragging) return;
+    clearTimeout(lpTimer); isDragging = false;
+
+    // End drag reorder
+    if (isLongPressing) {
+      isLongPressing = false;
+      dragItem = null;
+      dragEl = null;
+      render();
+      return;
+    }
+
+    row.style.transition = "transform 0.3s cubic-bezier(0.2,0.9,0.3,1), opacity 0.2s ease";
+
+    var dx = offset;
+    var elapsed = Date.now() - startTime;
+    var dist = Math.abs(dx);
+
+    // Tap detection
+    if (dist < 8 && elapsed < 300) {
+      row.style.transform = ""; offset = 0;
+      openSheet(loop);
+      return;
+    }
+    if (locked !== "x") { row.style.transform = ""; offset = 0; return; }
+
+    // Mailbox-style collapse: slide row off, then collapse height, then fire action
+    function collapseAndAct(actionName) {
+      row.style.transform = "translateX(" + (dx > 0 ? "110%" : "-110%") + ")";
+      row.style.opacity = "0";
+      setTimeout(function() {
+        var h = wrap.offsetHeight;
+        wrap.style.height = h + "px";
+        wrap.style.overflow = "hidden";
+        wrap.offsetHeight; // force reflow
+        wrap.style.transition = "height 0.25s cubic-bezier(0.2,0.9,0.3,1), margin 0.25s cubic-bezier(0.2,0.9,0.3,1)";
+        wrap.style.height = "0px";
+        wrap.style.marginTop = "0px";
+        wrap.style.marginBottom = "0px";
+        setTimeout(function() { doAction(loop.id, actionName); }, 260);
+      }, 250);
+    }
+
+    // ── SWIPE LOGIC ──
+    // Long swipe = ONLY if gesture took 2+ seconds (slow deliberate drag)
+    // Everything else = short swipe (no matter how far you swiped)
+    var isLongTriggered = dist > LONG_SWIPE && elapsed > LONG_SWIPE_MIN_TIME;
+    var isShortTriggered = dist > SHORT_SWIPE;
+
+    if (isLongTriggered && dx > 0) {
+      collapseAndAct("automate");
+    } else if (isLongTriggered && dx < 0) {
+      collapseAndAct("remove");
+    } else if (isShortTriggered && dx > 0) {
+      collapseAndAct(isClosed ? "reactivate" : "complete");
+    } else if (isShortTriggered && dx < 0 && !isClosed) {
+      collapseAndAct("snooze");
+    } else {
+      row.style.transform = ""; offset = 0;
+    }
+  }
+
+  row.addEventListener("touchstart", onTS, {passive: true});
+  row.addEventListener("touchmove", onTM, {passive: false});
+  row.addEventListener("touchend", onTE);
+
+  return wrap;
+}
+
+function tabIcon(type, isActive) {
+  var s = isActive ? "#44FF44" : "#48484A";
+  if (type==="active") return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="'+s+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.2-8.6"/><path d="M21 4v4.8h-4.8"/></svg>';
+  if (type==="snoozed") return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="'+s+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>';
+  return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="'+s+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>';
+}
+
+// ── Pull to refresh state ──
+var pullStartY = 0;
+var pullOffset = 0;
+var isPulling = false;
+
+function setupPullToRefresh(listEl) {
+  var indicator = document.getElementById("pullIndicator");
+
+  listEl.addEventListener("touchstart", function(e) {
+    if (listEl.scrollTop <= 0) {
+      pullStartY = e.touches[0].clientY;
+      isPulling = true;
+    }
+  }, {passive: true});
+
+  listEl.addEventListener("touchmove", function(e) {
+    if (!isPulling) return;
+    var dy = e.touches[0].clientY - pullStartY;
+    if (dy < 0) { dy = 0; isPulling = false; }
+    if (listEl.scrollTop > 0) { isPulling = false; return; }
+    pullOffset = Math.min(dy * 0.4, 80);
+    if (pullOffset > 5) {
+      indicator.style.opacity = String(Math.min(pullOffset / 50, 1));
+      indicator.style.transform = "translateY(" + (pullOffset - 30) + "px)";
+      listEl.style.transform = "translateY(" + pullOffset + "px)";
+    }
+  }, {passive: true});
+
+  listEl.addEventListener("touchend", function() {
+    if (!isPulling && pullOffset < 5) return;
+    var didTrigger = pullOffset > 50;
+    indicator.style.transition = "all 0.3s ease";
+    indicator.style.opacity = "0";
+    indicator.style.transform = "translateY(-30px)";
+    listEl.style.transition = "transform 0.3s ease";
+    listEl.style.transform = "";
+    setTimeout(function() {
+      indicator.style.transition = "";
+      listEl.style.transition = "";
+    }, 300);
+    if (didTrigger) {
+      showToast("Refreshed \u2014 all caught up", C.accent);
+    }
+    isPulling = false;
+    pullOffset = 0;
+  });
+}
+
+// ── Render just the list (for drag reorder without full re-render) ──
+function renderList() {
+  var list = getList();
+  var isClosed = tab === "closed";
+  var listArea = document.getElementById("listArea");
+  if (!listArea) return;
+  listArea.innerHTML = "";
+  if (list.length === 0) {
+    var emptyConfig = {active:{i:"\u2713",t:"You\u2019re clear.",s:"I\u2019ve got the rest."},snoozed:{i:"\u23F0",t:"Nothing snoozed.",s:"Deferred items appear here."},closed:{i:"\u2728",t:"No closed loops.",s:"Completed items show up here."}};
+    var ec = emptyConfig[tab];
+    listArea.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:0 32px;text-align:center"><div style="font-size:32px;margin-bottom:12px;opacity:0.6">'+ec.i+'</div><div style="font-size:18px;font-weight:700;margin:0 0 4px">'+ec.t+'</div><div style="font-size:13px;color:#8E8E93">'+ec.s+'</div></div>';
+  } else {
+    for (var i = 0; i < list.length; i++) {
+      var r = makeRow(list[i], 0, isClosed);
+      r.style.opacity = "1";
+      listArea.appendChild(r);
+    }
+  }
+}
+
+// ── Render ──
+function render() {
+  var list = getList();
+  var isClosed = tab === "closed";
+  var titles = {active:"Active loops",snoozed:"Snoozed",closed:"Closed loops"};
+  var count = list.length > 0 ? " <span style='font-size:20px;font-weight:700;color:#48484A'>("+list.length+")</span>" : "";
+
+  var tabTypes = ["active","snoozed","closed"];
+  var tabColors = {active:"#44FF44",snoozed:"#44FF44",closed:"#44FF44"};
+  var tabCounts = {active:active.length,snoozed:snoozed.length,closed:closed.length};
+  var tabsHTML = "";
+  for (var ti = 0; ti < tabTypes.length; ti++) {
+    var tt = tabTypes[ti];
+    var isAct = tab === tt;
+    var badge = (tabCounts[tt] > 0 && isAct) ? '<span style="position:absolute;top:-4px;right:-8px;background:'+tabColors[tt]+';color:#000;font-size:9px;font-weight:700;width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center">'+tabCounts[tt]+'</span>' : "";
+    tabsHTML += '<button onclick="tab=\''+tt+'\';render()" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:transparent;border:none;padding:4px 0;opacity:'+(isAct?"1":"0.5")+'"><div style="position:relative">'+tabIcon(tt,isAct)+badge+'</div></button>';
+  }
+  tabsHTML += '<div style="width:1px;height:24px;background:rgba(255,255,255,0.06);margin:0 4px;flex-shrink:0"></div>';
+  tabsHTML += '<button onclick="openAddSheet()" style="flex:0.7;display:flex;flex-direction:column;align-items:center;background:transparent;border:none;padding:4px 0;opacity:0.6"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>';
+
+  var app = document.getElementById("app");
+  app.innerHTML = ''
+    + '<div style="height:env(safe-area-inset-top,12px);min-height:12px;flex-shrink:0"></div>'
+    + '<div style="padding:8px 20px 12px;flex-shrink:0;text-align:center"><span style="font-size:24px;font-weight:800;letter-spacing:-0.02em">'+titles[tab]+'</span>'+count+'</div>'
+    + '<div id="pullIndicator" style="position:absolute;left:50%;transform:translateX(-50%) translateY(-30px);z-index:10;opacity:0;pointer-events:none"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="'+C.accent+'" stroke-width="2" style="animation:spin 0.8s linear infinite"><circle cx="12" cy="12" r="10" stroke-dasharray="40" stroke-dashoffset="10"/></svg></div>'
+    + '<div id="listArea" style="flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;position:relative;padding-bottom:60px"></div>'
+    + '<div style="position:absolute;bottom:0;left:0;right:0;background:#0C0C0E;z-index:100;padding-bottom:env(safe-area-inset-bottom,0px)"><div style="display:flex;align-items:center;padding:8px 16px 0;border-top:1px solid rgba(255,255,255,0.06)">'+tabsHTML+'</div></div>'
+    + '<div id="sheetOverlay" onclick="closeSheet()" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:200;display:none"></div>'
+    + '<div id="sheet" style="position:absolute;bottom:0;left:0;right:0;background:#151517;border-radius:16px 16px 0 0;padding:10px 20px 24px;z-index:201;max-height:75%;overflow-y:auto;transform:translateY(100%);transition:transform 0.3s cubic-bezier(0.2,0.9,0.3,1)"></div>'
+    + '<div id="toast" style="position:absolute;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:#151517;border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:8px 16px;font-size:12px;font-weight:500;opacity:0;transition:all 0.3s ease;z-index:300;pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,0.4);white-space:nowrap"></div>';
+
+  if (!document.getElementById("loopStyles")) {
+    var style = document.createElement("style");
+    style.id = "loopStyles";
+    style.textContent = "@keyframes spin{to{transform:rotate(360deg)}}";
+    document.head.appendChild(style);
+  }
+
+  renderList();
+  setupPullToRefresh(document.getElementById("listArea"));
+}
+
+render();
+
+} catch(err) {
+  document.body.style.cssText = "background:#0C0C0E;color:#ff6b6b;padding:40px;font-size:14px;overflow:auto;position:static";
+  document.body.innerHTML = "<b>Error:</b><br>" + err.message + "<br><br>Stack:<br>" + (err.stack || "none");
+}
+</script>
+</body>
+</html>
