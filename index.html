@@ -487,7 +487,7 @@ function makeRow(loop, idx, isClosed) {
 
 function tabIcon(type, isActive) {
   var s = isActive ? "#44FF44" : "#8E8E93";
-  if (type==="active") return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="'+s+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12c-2.5-2.5-4-4.5-4-6.5a3.5 3.5 0 0 1 6.5-1.9A3.5 3.5 0 0 1 17 5.5c0 2-1.5 4-4 6.5"/><path d="M16 12c2.5 2.5 4 4.5 4 6.5a3.5 3.5 0 0 1-6.5 1.9A3.5 3.5 0 0 1 7 18.5c0-2 1.5-4 4-6.5"/></svg>';
+  if (type==="active") return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="'+s+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg>';
   if (type==="snoozed") return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="'+s+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>';
   return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="'+s+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>';
 }
