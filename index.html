@@ -71,12 +71,12 @@ var INITIAL = [
 
 var active = [];
 var snoozed = [];
-var closed = [];
+var done = [];
 // Move fully-auto loops straight to closed on init
 (function() {
   var copy = JSON.parse(JSON.stringify(INITIAL));
   for (var i = 0; i < copy.length; i++) {
-    if (copy[i].auto === "auto") { closed.push(copy[i]); }
+    if (copy[i].auto === "auto") { done.push(copy[i]); }
     else { active.push(copy[i]); }
   }
 })();
@@ -93,7 +93,7 @@ var dragStartY = 0;
 var dragOffsetY = 0;
 var dragIndex = -1;
 
-function getList() { return tab === "active" ? active : tab === "snoozed" ? snoozed : closed; }
+function getList() { return tab === "active" ? active : tab === "snoozed" ? snoozed : done; }
 
 function chevronHTML(a) {
   if (a === "manual") return "";
@@ -121,23 +121,23 @@ function doAction(id, action) {
   if (action === "complete") {
     for (i = 0; i < active.length; i++) { if (active[i].id === id) { item = active.splice(i, 1)[0]; break; } }
     if (!item) for (i = 0; i < snoozed.length; i++) { if (snoozed[i].id === id) { item = snoozed.splice(i, 1)[0]; break; } }
-    if (item) { closed.unshift(JSON.parse(JSON.stringify(item))); showToast("Done \u2014 loop closed", C.approve); }
+    if (item) { done.unshift(JSON.parse(JSON.stringify(item))); showToast("Done \u2014 loop closed", C.approve); }
   } else if (action === "snooze") {
     for (i = 0; i < active.length; i++) { if (active[i].id === id) { item = active.splice(i, 1)[0]; break; } }
     if (item) { snoozed.unshift(JSON.parse(JSON.stringify(item))); showToast("Snoozed \u2014 I\u2019ll bring it back", C.snooze); }
   } else if (action === "remove") {
     active = active.filter(function(l){return l.id!==id});
     snoozed = snoozed.filter(function(l){return l.id!==id});
-    closed = closed.filter(function(l){return l.id!==id});
+    done = done.filter(function(l){return l.id!==id});
     showToast("Loop removed", C.dismiss);
   } else if (action === "automate") {
     for (i = 0; i < active.length; i++) { if (active[i].id === id) { item = active.splice(i, 1)[0]; break; } }
     if (!item) for (i = 0; i < snoozed.length; i++) { if (snoozed[i].id === id) { item = snoozed.splice(i, 1)[0]; break; } }
-    if (item) { item.auto = "auto"; item.sub = "AI takeover \u2022 Monitoring"; closed.unshift(JSON.parse(JSON.stringify(item))); }
+    if (item) { item.auto = "auto"; item.sub = "AI takeover \u2022 Monitoring"; done.unshift(JSON.parse(JSON.stringify(item))); }
     showToast("\u00BB AI is now handling this loop", C.automate);
   } else if (action === "reactivate") {
     for (i = 0; i < snoozed.length; i++) { if (snoozed[i].id === id) { item = snoozed.splice(i, 1)[0]; break; } }
-    if (!item) for (i = 0; i < closed.length; i++) { if (closed[i].id === id) { item = closed.splice(i, 1)[0]; break; } }
+    if (!item) for (i = 0; i < done.length; i++) { if (done[i].id === id) { item = done.splice(i, 1)[0]; break; } }
     if (item) { active.unshift(JSON.parse(JSON.stringify(item))); showToast("Reopened", C.accent); }
   }
   render();
@@ -564,10 +564,10 @@ function renderList() {
 function resetPrototype() {
   active = [];
   snoozed = [];
-  closed = [];
+  done = [];
   var copy = JSON.parse(JSON.stringify(INITIAL));
   for (var i = 0; i < copy.length; i++) {
-    if (copy[i].auto === "auto") { closed.push(copy[i]); }
+    if (copy[i].auto === "auto") { done.push(copy[i]); }
     else { active.push(copy[i]); }
   }
   newLoopIds = {};
@@ -587,7 +587,7 @@ function render() {
 
   var tabTypes = ["active","snoozed","closed"];
   var tabColors = {active:"#44FF44",snoozed:"#44FF44",closed:"#44FF44"};
-  var tabCounts = {active:active.length,snoozed:snoozed.length,closed:closed.length};
+  var tabCounts = {active:active.length,snoozed:snoozed.length,closed:done.length};
   var tabsHTML = "";
   for (var ti = 0; ti < tabTypes.length; ti++) {
     var tt = tabTypes[ti];
