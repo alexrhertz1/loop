@@ -10,19 +10,14 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Loop</title>
 </head>
-<body style="margin:0;padding:0;background:#0C0C0E;font-family:-apple-system,BlinkMacSystemFont,sans-serif;overflow:hidden;-webkit-user-select:none">
+<style>
+  html, body { margin:0; padding:0; height:100%; }
+  body { background:#0C0C0E; font-family:-apple-system,BlinkMacSystemFont,sans-serif; overflow:hidden; -webkit-user-select:none; }
+  #app { display:flex; flex-direction:column; overflow:hidden; color:#F5F5F7; height:100vh; height:-webkit-fill-available; height:100dvh; }
+</style>
+<body>
 
-<div id="app" style="display:flex;flex-direction:column;overflow:hidden;color:#F5F5F7"></div>
-<script>
-function setAppHeight() {
-  // In standalone mode, use the full screen height to avoid gap above home indicator
-  var isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
-  var h = isStandalone ? screen.height : window.innerHeight;
-  document.getElementById("app").style.height = h + "px";
-}
-setAppHeight();
-window.addEventListener("resize", setAppHeight);
-</script>
+<div id="app"></div>
 
 <script>
 try {
