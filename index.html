@@ -17,6 +17,16 @@
 </style>
 <body>
 
+<div id="splash" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#0C0C0E;display:flex;align-items:center;justify-content:center;z-index:9999;transition:opacity 0.4s ease">
+  <svg width="64" height="64" viewBox="0 0 1536 1536" fill="none">
+    <path d="M496.937 1119.27C407.049 1120.75 320.277 1086.24 255.917 1023.43C119.966 890.696 119.118 648.777 248.972 512.316C309.913 448.266 399.379 415.019 489.689 413.683C575.833 412.409 661.437 440.187 722.527 496.328C693.628 527.435 655.052 566.129 624.892 595.034C619.698 592.595 614.343 589.733 608.525 586.652C600.288 582.291 591.135 577.516 581.59 574.215L581.575 574.21C525.169 554.769 470.413 555.873 423.872 576.228C377.289 596.601 340.073 635.77 317.957 690.323L317.858 690.567L317.769 690.816C271.648 819.765 362.9 953.155 497.196 964.539C559.16 969.796 615.147 937.774 666.617 893.639C718.032 849.551 753.505 805.746 816.417 742.835C871.259 687.992 913.461 641.877 962.776 621.471C987.101 611.405 1011.46 607.445 1036.41 611.337C1058.1 614.72 1082.19 628.228 1106.43 645.85C1078.69 673.564 1013.01 741.385 1013.01 741.385L870.534 884.548L870.49 884.592C760.8 999.017 672.422 1107.89 507.032 1119.01C503.67 1119.12 500.287 1119.21 496.935 1119.27Z" fill="url(#splashG1)"/>
+    <path d="M1019.4 412.728C1109.29 411.255 1196.06 445.761 1260.42 508.574C1396.37 641.305 1397.22 883.223 1267.36 1019.69C1206.42 1083.73 1116.96 1116.98 1026.65 1118.32C940.503 1119.59 854.899 1091.81 793.81 1035.67C822.709 1004.57 861.284 965.872 891.445 936.967C896.639 939.406 901.993 942.268 907.812 945.349C916.049 949.71 925.201 954.484 934.746 957.786L934.761 957.791C991.167 977.232 1045.92 976.128 1092.46 955.773C1139.05 935.399 1176.26 896.231 1198.38 841.678L1198.48 841.434L1198.57 841.185C1244.69 712.236 1153.44 578.846 1019.14 567.462C957.177 562.204 901.189 594.227 849.719 638.361C798.305 682.449 762.831 726.254 699.919 789.166C645.077 844.008 602.876 890.123 553.561 910.53C529.235 920.595 505.521 923.077 480.57 919.185C458.883 915.802 433.238 904.121 408.999 886.5C436.731 858.786 503.328 790.615 503.328 790.615L645.802 647.453L645.846 647.409C755.536 532.984 843.914 424.115 1009.3 412.989C1012.67 412.88 1016.05 412.792 1019.4 412.73Z" fill="url(#splashG2)"/>
+    <defs>
+      <linearGradient id="splashG1" x1="758" y1="401" x2="758" y2="1131" gradientUnits="userSpaceOnUse"><stop stop-color="#61FF61"/><stop offset="1" stop-color="#3A993A"/></linearGradient>
+      <linearGradient id="splashG2" x1="758" y1="401" x2="758" y2="1131" gradientUnits="userSpaceOnUse"><stop stop-color="#61FF61"/><stop offset="1" stop-color="#3A993A"/></linearGradient>
+    </defs>
+  </svg>
+</div>
 <div id="app"></div>
 <script>
 if (window.navigator.standalone) {
@@ -59,10 +69,19 @@ var INITIAL = [
   {id:7,auto:"semi",title:"Review dentist booking",sub:"3 slots found \u00B7 Next Tue & Thu",cTitle:"Dentist booked",cSub:"Tue 9am \u00B7 Dr. Park",src:"Health",ctx:"It\u2019s been 9 months since your last visit. Dr. Park has 3 openings next week: Tue 9am, Tue 11am, Thu 10am.",ai:"Want me to book Tuesday 9am? I\u2019ll add it to your calendar and set a reminder the night before."}
 ];
 
-var active = JSON.parse(JSON.stringify(INITIAL));
+var active = [];
 var snoozed = [];
 var closed = [];
+// Move fully-auto loops straight to closed on init
+(function() {
+  var copy = JSON.parse(JSON.stringify(INITIAL));
+  for (var i = 0; i < copy.length; i++) {
+    if (copy[i].auto === "auto") { closed.push(copy[i]); }
+    else { active.push(copy[i]); }
+  }
+})();
 var tab = "active";
+var newLoopIds = {}; // track newly added loops for green dot indicator
 var sheetLoop = null;
 var toastTimer = null;
 
@@ -251,6 +270,7 @@ function submitNewLoop() {
   };
 
   active.unshift(newLoop);
+  newLoopIds[id] = true; // mark as new for green dot
   tab = "active";
   closeSheet();
   render();
@@ -290,7 +310,8 @@ function makeRow(loop, idx, isClosed) {
 
   var row = document.createElement("div");
   row.style.cssText = "position:relative;z-index:2;background:#0C0C0E;padding:16px;display:flex;align-items:center;touch-action:pan-y";
-  row.innerHTML = '<div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:600;color:#F5F5F7;margin:0 0 3px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+title+'</div><div style="font-size:13px;color:#8E8E93;margin:0;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+subtitle+'</div></div><div style="margin-left:12px;flex-shrink:0">'+chevronHTML(loop.auto)+'</div>';
+  var newDot = newLoopIds[loop.id] ? '<div style="width:7px;height:7px;border-radius:50%;background:#44FF44;flex-shrink:0;margin-right:10px"></div>' : '';
+  row.innerHTML = newDot+'<div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:600;color:#F5F5F7;margin:0 0 3px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+title+'</div><div style="font-size:13px;color:#8E8E93;margin:0;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+subtitle+'</div></div><div style="margin-left:12px;flex-shrink:0">'+chevronHTML(loop.auto)+'</div>';
   wrap.appendChild(row);
 
   var dv = document.createElement("div");
@@ -465,10 +486,10 @@ function makeRow(loop, idx, isClosed) {
 }
 
 function tabIcon(type, isActive) {
-  var s = isActive ? "#44FF44" : "#48484A";
-  if (type==="active") return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="'+s+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.2-8.6"/><path d="M21 4v4.8h-4.8"/></svg>';
-  if (type==="snoozed") return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="'+s+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>';
-  return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="'+s+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>';
+  var s = isActive ? "#44FF44" : "#8E8E93";
+  if (type==="active") return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="'+s+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12c-2.5-2.5-4-4.5-4-6.5a3.5 3.5 0 0 1 6.5-1.9A3.5 3.5 0 0 1 17 5.5c0 2-1.5 4-4 6.5"/><path d="M16 12c2.5 2.5 4 4.5 4 6.5a3.5 3.5 0 0 1-6.5 1.9A3.5 3.5 0 0 1 7 18.5c0-2 1.5-4 4-6.5"/></svg>';
+  if (type==="snoozed") return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="'+s+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>';
+  return '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="'+s+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>';
 }
 
 // ── Pull to refresh state ──
@@ -539,11 +560,29 @@ function renderList() {
   }
 }
 
+// ── Reset prototype to initial state ──
+function resetPrototype() {
+  active = [];
+  snoozed = [];
+  closed = [];
+  var copy = JSON.parse(JSON.stringify(INITIAL));
+  for (var i = 0; i < copy.length; i++) {
+    if (copy[i].auto === "auto") { closed.push(copy[i]); }
+    else { active.push(copy[i]); }
+  }
+  newLoopIds = {};
+  nextId = 100;
+  tab = "active";
+  showToast("Prototype reset", C.accent);
+  render();
+}
+
 // ── Render ──
 function render() {
   var list = getList();
   var isClosed = tab === "closed";
   var titles = {active:"Active loops",snoozed:"Snoozed",closed:"Closed loops"};
+  // Title is tappable to refresh/reset prototype
   var count = list.length > 0 ? " <span style='font-size:20px;font-weight:700;color:#48484A'>("+list.length+")</span>" : "";
 
   var tabTypes = ["active","snoozed","closed"];
@@ -562,7 +601,7 @@ function render() {
   var app = document.getElementById("app");
   app.innerHTML = ''
     + '<div style="height:env(safe-area-inset-top,12px);min-height:12px;flex-shrink:0"></div>'
-    + '<div style="padding:8px 20px 12px;flex-shrink:0;text-align:center"><span style="font-size:24px;font-weight:800;letter-spacing:-0.02em">'+titles[tab]+'</span>'+count+'</div>'
+    + '<div style="padding:8px 20px 12px;flex-shrink:0;text-align:center"><span onclick="resetPrototype()" style="font-size:24px;font-weight:800;letter-spacing:-0.02em;cursor:pointer;-webkit-tap-highlight-color:transparent">'+titles[tab]+'</span>'+count+'</div>'
     + '<div id="pullIndicator" style="position:absolute;left:50%;transform:translateX(-50%) translateY(-30px);z-index:10;opacity:0;pointer-events:none"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="'+C.accent+'" stroke-width="2" style="animation:spin 0.8s linear infinite"><circle cx="12" cy="12" r="10" stroke-dasharray="40" stroke-dashoffset="10"/></svg></div>'
     + '<div id="listArea" style="flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;position:relative"></div>'
     + '<div id="tabBar" style="flex-shrink:0;background:#0C0C0E;z-index:100"><div style="display:flex;align-items:center;justify-content:center;height:72px;padding:0 16px;border-top:1px solid rgba(255,255,255,0.06)">'+tabsHTML+'</div></div>'
@@ -582,6 +621,15 @@ function render() {
 }
 
 render();
+
+// Fade out splash screen
+setTimeout(function() {
+  var splash = document.getElementById("splash");
+  if (splash) {
+    splash.style.opacity = "0";
+    setTimeout(function() { splash.style.display = "none"; }, 400);
+  }
+}, 600);
 
 } catch(err) {
   document.body.style.cssText = "background:#0C0C0E;color:#ff6b6b;padding:40px;font-size:14px;overflow:auto;position:static";
