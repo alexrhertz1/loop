@@ -15,7 +15,9 @@
 <div id="app" style="display:flex;flex-direction:column;overflow:hidden;color:#F5F5F7"></div>
 <script>
 function setAppHeight() {
-  var h = window.innerHeight;
+  // In standalone mode, use the full screen height to avoid gap above home indicator
+  var isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+  var h = isStandalone ? screen.height : window.innerHeight;
   document.getElementById("app").style.height = h + "px";
 }
 setAppHeight();
