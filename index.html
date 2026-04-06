@@ -13,11 +13,18 @@
 <style>
   html, body { margin:0; padding:0; height:100%; overflow:hidden; }
   body { background:#0C0C0E; font-family:-apple-system,BlinkMacSystemFont,sans-serif; -webkit-user-select:none; }
-  #app { position:fixed; top:0; left:0; right:0; bottom:0; display:flex; flex-direction:column; overflow:hidden; color:#F5F5F7; }
+  #app { display:flex; flex-direction:column; overflow:hidden; color:#F5F5F7; height:100%; }
 </style>
 <body>
 
 <div id="app"></div>
+<script>
+if (window.navigator.standalone) {
+  document.documentElement.style.height = screen.height + 'px';
+  document.body.style.height = screen.height + 'px';
+  document.getElementById('app').style.height = screen.height + 'px';
+}
+</script>
 
 <script>
 try {
